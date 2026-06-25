@@ -1,9 +1,8 @@
+use log::info;
 use regex::Regex;
 use std::collections::HashMap;
 
-use crate::models::ScanResult;
-use crate::network_iocs;
-use crate::utils::is_threat;
+use crate::utils::treat_detection::is_threat;
 
 // (?i) - Case-insensitive
 // (\w+) - Var name
@@ -11,9 +10,10 @@ use crate::utils::is_threat;
 // "([^"]+)" - String obfuscated
 // [\s\S]{1,200}? - Limit to 200 chars
 // StrReverse\(\1\) - StrReverse with a backreference to the variable name
-pub fn hunt_script_obfuscation(content: &str, results: &mut ScanResult) {
+pub fn hunt_strreverse_obfuscation(content: &str) -> Vec<(String, String)> {
     let reverse_pattern =
         Regex::new(r#"(?i)(\w+)\s*=\s*"([^"]+)"[\s\S]{1,200}?StrReverse\((\w+)\)"#).unwrap();
+    let mut results = Vec::new();
 
     for cap in reverse_pattern.captures_iter(content) {
         let var_decl = &cap[1];
@@ -25,20 +25,18 @@ pub fn hunt_script_obfuscation(content: &str, results: &mut ScanResult) {
 
             if is_threat(&decoded) {
                 println!("[!] StrReverse Threat: {}", decoded);
-                results
-                    .reversed_strings
-                    .push((original_obfuscated.to_string(), decoded.clone()));
-                network_iocs(&decoded.to_lowercase(), results);
+                results.push((var_decl.to_string(), decoded));
             }
         }
     }
+    results
 }
 
 // Memory to storage var and strings definition
-pub fn hunt_stateful_obfuscation(content: &str, results: &mut ScanResult) {
+pub fn hunt_stateful_obfuscation(content: &str) -> Vec<(String, String)> {
     let mut memory: HashMap<String, String> = HashMap::new();
+    let mut results = Vec::new();
 
-    // Var declaration
     let assignment_regex = Regex::new(r"(?i)([a-z_][a-z0-9_]*)\s*=\s*(.+)").unwrap();
     let string_literal_regex = Regex::new(r#""([^"]*)""#).unwrap();
 
@@ -86,67 +84,17 @@ pub fn hunt_stateful_obfuscation(content: &str, results: &mut ScanResult) {
                     memory.insert(var_name.clone(), resolved_value.clone());
 
                     if is_threat(&resolved_value) {
-                        println!("\n--- [ OBFUSCATION DETECTED (Stateful) ] ---");
-                        println!("[!] Resolved Concatenation!");
-                        println!("    ↳ Variable: {}", var_name);
-                        println!("    ↳ Payload:  {}", resolved_value);
+                        info!("\n--- [ OBFUSCATION DETECTED (Stateful) ] ---");
+                        info!("    ↳ Variable: {}", var_name);
+                        info!("    ↳ Payload:  {}", resolved_value);
+                        info!("[!] Resolved Concatenation!");
 
-                        network_iocs(&resolved_value.to_lowercase(), results);
+                        results.push((var_name, resolved_value));
                     }
                 }
             }
         }
     }
-}
 
-pub fn hunt_array_obfuscation(content: &str, results: &mut ScanResult) {
-    let array_regex = Regex::new(r"(?i)Array\s*\(([^)]+)\)").unwrap();
-
-    let mut extracted_arrays: Vec<Vec<i32>> = Vec::new();
-
-    for cap in array_regex.captures_iter(content) {
-        let inner_content = &cap[1];
-        let mut numbers = Vec::new();
-
-        for part in inner_content.split(',') {
-            let clean_part = part.trim().to_uppercase().replace("&H", ""); // Remove espaços e o &H
-
-            if let Ok(num) = i32::from_str_radix(&clean_part, 16) {
-                numbers.push(num);
-            } else if let Ok(num) = clean_part.parse::<i32>() {
-                numbers.push(num);
-            }
-        }
-
-        if numbers.len() >= 5 {
-            extracted_arrays.push(numbers);
-        }
-    }
-
-    for i in 0..extracted_arrays.len() {
-        if i + 1 < extracted_arrays.len() {
-            let arr1 = &extracted_arrays[i];
-            let arr2 = &extracted_arrays[i + 1];
-
-            let mut shifted_str = String::new();
-            let min_len = arr1.len().min(arr2.len());
-
-            for j in 0..min_len {
-                let val = arr1[j] + arr2[j];
-
-                if (32..=126).contains(&val) {
-                    shifted_str.push(val as u8 as char);
-                }
-            }
-
-            if is_threat(&shifted_str) {
-                println!("\n--- [ OBFUSCATION DETECTED (Array Math) ] ---");
-                println!("[!] Array Shift Decoded: {}", shifted_str);
-
-                results.array_strings.push(shifted_str.clone());
-
-                network_iocs(&shifted_str.to_lowercase(), results);
-            }
-        }
-    }
+    results
 }

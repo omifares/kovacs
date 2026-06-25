@@ -1,3 +1,2 @@
-pub mod network;
-pub mod decode;
-pub mod obfus;
+pub mod arrays;
+pub mod obfuscation;
